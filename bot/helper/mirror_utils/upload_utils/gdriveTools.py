@@ -212,7 +212,7 @@ class GoogleDriveHelper:
             except HttpError as err:
                 if err.resp.get('content-type', '').startswith('application/json'):
                     reason = json.loads(err.content).get('error').get('errors')[0].get('reason')
-                    if reason == 'userRateLimitExceeded' or reason == 'dailyLimitExceeded':
+                    if reason in ('userRateLimitExceeded', 'dailyLimitExceeded'):
                         if USE_SERVICE_ACCOUNTS:
                             self.switchServiceAccount()
                             LOGGER.info(f"Got: {reason}, Trying Again.")
@@ -312,14 +312,13 @@ class GoogleDriveHelper:
         except HttpError as err:
             if err.resp.get('content-type', '').startswith('application/json'):
                 reason = json.loads(err.content).get('error').get('errors')[0].get('reason')
-                if reason == 'userRateLimitExceeded' or reason == 'dailyLimitExceeded':
+                if reason in ('userRateLimitExceeded', 'dailyLimitExceeded'):
                     if USE_SERVICE_ACCOUNTS:
                         if self.sa_count == self.service_account_count:
                             self.is_cancelled = True
                             raise err
-                        else:
-                            self.switchServiceAccount()
-                            return self.copyFile(file_id,dest_id)
+                        self.switchServiceAccount()
+                        return self.copyFile(file_id,dest_id)
                     else:
                         self.is_cancelled = True
                         LOGGER.info(f"Got: {reason}")
@@ -564,7 +563,8 @@ class GoogleDriveHelper:
                                  html_content=content)
         return
 
-    def escapes(self, str):	
+    @staticmethod
+    def escapes(str):	
         chars = ['\\', "'", '"', r'\a', r'\b', r'\f', r'\n', r'\r', r'\t']	
         for char in chars:	
             str = str.replace(char, '\\'+char)	
@@ -821,6 +821,7 @@ class GoogleDriveHelper:
 
     def download_file(self, file_id, path, filename, mime_type):
         request = self.__service.files().get_media(fileId=file_id)
+        filename = filename.replace('/', '')
         fh = io.FileIO('{}{}'.format(path, filename), 'wb')
         downloader = MediaIoBaseDownload(fh, request, chunksize = 65 * 1024 * 1024)
         done = False
